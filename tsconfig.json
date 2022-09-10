@@ -7,7 +7,7 @@
       "allowJs": false,
       "sourceMap": true,
       "baseUrl": "./",
-      "outDir": "./dist",
+      "outDir": "./app",
       "declaration": true,
       "declarationDir": "./types",
       "strict": true,

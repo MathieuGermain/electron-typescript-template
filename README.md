@@ -1,8 +1,10 @@
 # Electron Typescript Template
 
-[![CI](https://github.com/MathieuGermain/electron-typescript-template/actions/workflows/tests.yml/badge.svg)](https://github.com/MathieuGermain/electron-typescript-template/actions/workflows/tests.yml)
+[![Tests](https://github.com/MathieuGermain/electron-typescript-template/actions/workflows/tests.yml/badge.svg)](https://github.com/MathieuGermain/electron-typescript-template/actions/workflows/tests.yml)
 
-Electron TypeScript template using yarn / CommonJS / TypeScript / Jest / ESLint / Prettier / Github Actions
+Electron TypeScript template using yarn / CommonJS / TypeScript / Jest / SCSS / ESLint / Prettier / Github Actions
+
+[Electron](https://www.electronjs.org/docs/latest) | [Electron Builder](https://www.electron.build/)
 
 <br>
 

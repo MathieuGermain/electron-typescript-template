@@ -2,6 +2,7 @@
 node_modules/
 
 # Sources
+app/
 dist/
 types/
 
