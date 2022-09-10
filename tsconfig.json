@@ -5,7 +5,7 @@
       "moduleResolution": "Node",
       "lib": ["ESNext", "DOM"],
       "allowJs": false,
-      "sourceMap": true,
+      "sourceMap": false,
       "baseUrl": "./",
       "outDir": "./app",
       "declaration": true,
