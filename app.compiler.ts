@@ -69,16 +69,19 @@ export async function TranspileSASS() {
 }
 
 // Transpile Typescript
-export async function TranspileTypescript() {
+export async function TranspileTypescript(watchChanges = false) {
     const time = Date.now();
     console.log('> Transpiling Typescript...');
+
     return new Promise<void>((resolve, reject) => {
-        const tsc = spawn('tsc', {
+        const tsc = spawn('tsc', [watchChanges ? `--watch` : ''], {
             shell: true,
         });
 
         tsc.stdout.on('data', (data: Buffer) => {
-            console.log(data.toString());
+            // Hack to stop tsc --watch from clearing the console
+            const str = data.toString().split('\x1B').join('').trim();
+            if (str.includes('error')) process.stdout.write(str + '\n');
         });
 
         tsc.stderr.on('data', (data: Buffer) => {
