@@ -97,17 +97,21 @@ export async function TranspileTypescript() {
 
 // Execute each
 export async function ExecuteEach(exitOnError = true) {
-    await TranspileTypescript().catch((code) => {
-        if (exitOnError) process.exit(code);
-    });
-    await TranspileSASS().catch((error: Error) => {
-        console.error(error.message);
-        if (exitOnError) process.exit(1);
-    });
-    await CopyAssets().catch((error: Error) => {
-        console.error(error.message);
-        if (exitOnError) process.exit(1);
-    });
+    await Promise.all([
+        TranspileTypescript().catch((code) => {
+            if (exitOnError) process.exit(code);
+        }),
+
+        TranspileSASS().catch((error: Error) => {
+            console.error(error.message);
+            if (exitOnError) process.exit(1);
+        }),
+
+        CopyAssets().catch((error: Error) => {
+            console.error(error.message);
+            if (exitOnError) process.exit(1);
+        }),
+    ]);
 }
 
 // Start Watchers
