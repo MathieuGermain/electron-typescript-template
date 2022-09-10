@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { watch } from 'chokidar';
 import { join, resolve, extname, dirname } from 'path';
 import { readdir, stat, writeFile } from 'fs/promises';
-import { copy, copyFile, mkdir, rmdir, unlink } from 'fs-extra';
+import { copy, copyFile, existsSync, mkdir, rm } from 'fs-extra';
 import { compileAsync, OutputStyle } from 'sass';
 
 const isWatchEnabled = argv.includes('--watch');
@@ -19,17 +19,17 @@ export async function getFilesInDirRecursive(dir: string, filelist: string[] = [
     const files = await readdir(dir);
     filelist = filelist || [];
     for (const file of files) {
-        if ((await stat(join(dir, file))).isDirectory()) {
+        if ((await stat(join(dir, file))).isDirectory())
             filelist = await getFilesInDirRecursive(join(dir, file), filelist);
-        } else {
-            filelist?.push(join(dir, file));
-        }
+        else filelist?.push(join(dir, file));
     }
     return filelist;
 }
 
 // Copy Assets
 export async function CopyAssets() {
+    console.log('> Copying Assets...');
+    const time = Date.now();
     const files = (await getFilesInDirRecursive(inputSourceDirectory)).filter(
         (file: string) => ['.ts', '.scss', '.sass'].includes(extname(file)) === false,
     );
@@ -37,23 +37,24 @@ export async function CopyAssets() {
         const destination = file.replace(inputSourceDirectory, outputDirectory);
         await copy(file, destination, { recursive: true });
     }
+    console.log(`> Assets copied in ${(Date.now() - time) / 1000}s!`);
 }
 
 // Transpile SASS/SCSS
 export async function TranspileSASS() {
-    const time = Date.now();
     console.log('> Transpiling SASS...');
+    const time = Date.now();
     const css: { file: string; css: string }[] = [];
     const files = (await getFilesInDirRecursive(inputSassDirectory)).filter((file: string) =>
         ['.scss', '.sass'].includes(extname(file)),
     );
-    const paths = files.map((file) => dirname(file));
+    const loadPaths = files.map((file) => dirname(file));
     for (const file of files) {
         const result = await compileAsync(file, {
             style: outputStyle,
-            loadPaths: paths,
+            loadPaths,
         });
-        css.push({ file: file.replace(inputSourceDirectory, ''), css: result.css });
+        css.push({ file: file.replace(inputSassDirectory, ''), css: result.css });
     }
     await mkdir(join(outputDirectory), { recursive: true });
     await writeFile(
@@ -66,26 +67,25 @@ export async function TranspileSASS() {
 }
 
 // Transpile Typescript
-export async function TranspileTypescript() {
+export async function TranspileTypescript(watchChanges = false) {
     const time = Date.now();
     console.log('> Transpiling Typescript...');
+
     return new Promise<void>((resolve, reject) => {
-        const tsc = spawn('tsc', {
+        const tsc = spawn('tsc', [watchChanges ? `--watch` : ''], {
             shell: true,
         });
 
         tsc.stdout.on('data', (data: Buffer) => {
-            console.log(data.toString());
+            // Hack to stop tsc --watch from clearing the console
+            const str = data.toString().split('\x1B').join('').trim();
+            if (str.includes('error')) process.stdout.write(str + '\n');
         });
 
-        tsc.stderr.on('data', (data: Buffer) => {
-            console.error(data.toString());
-        });
+        tsc.stderr.on('data', (data: Buffer) => console.error(data.toString()));
 
         tsc.on('close', (code: number) => {
-            if (code != 0) {
-                return reject(code);
-            }
+            if (code != 0) return reject(code);
             console.log(`> Typescript transpiled in ${(Date.now() - time) / 1000}s!`);
             resolve();
         });
@@ -93,17 +93,22 @@ export async function TranspileTypescript() {
 }
 
 // Execute each
-export async function ExecuteEach(exitOnError = true) {
-    await TranspileTypescript().catch((code) => {
-        if (exitOnError) process.exit(code);
-    });
-    await TranspileSASS().catch((error: Error) => {
-        console.error(error.message);
-        if (exitOnError) process.exit(1);
-    });
-    await CopyAssets().catch((error: Error) => {
-        console.error(error.message);
-        if (exitOnError) process.exit(1);
+export async function ExecuteEach() {
+    await Promise.all([
+        TranspileTypescript().catch((error) => {
+            console.error(error);
+            throw error;
+        }),
+        TranspileSASS().catch((error) => {
+            console.error(error);
+            throw error;
+        }),
+        CopyAssets().catch((error) => {
+            console.error(error);
+            throw error;
+        }),
+    ]).catch((code) => {
+        process.exit(code > 0 ? code : 1);
     });
 }
 
@@ -111,69 +116,63 @@ export async function ExecuteEach(exitOnError = true) {
 export function StartWatchers() {
     console.log('App Compiler is watching...');
 
-    watch(inputSourceDirectory).on('add', async (path) => {
-        const ext = extname(path);
+    TranspileTypescript(true);
 
-        console.log(`- File ${path} was added...`);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
+    watch([inputSourceDirectory, inputSassDirectory], {
+        ignoreInitial: true,
+    })
+        // On Dir Added
+        .on('addDir', async (path) => {
+            console.log(`- Directory '${path}' was added`);
             const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await copyFile(path, destination);
-        }
-    });
+            await mkdir(destination, { recursive: true }).catch(console.error);
+        })
 
-    watch(inputSourceDirectory).on('addDir', async (path) => {
-        console.log(`- Directory ${path} was added...`);
-
-        const destination = path.replace(inputSourceDirectory, outputDirectory);
-        await mkdir(destination, { recursive: true });
-    });
-
-    watch(inputSourceDirectory).on('unlink', async (path) => {
-        console.log(`- File ${path} was removed...`);
-
-        const ext = extname(path);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
+        // On Dir Removed
+        .on('unlinkDir', async (path) => {
+            console.log(`- Directory '${path}' was removed`);
             const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await unlink(destination);
-        }
-    });
+            if (existsSync(destination)) await rm(destination, { recursive: true }).catch(console.error);
+        })
 
-    watch(inputSourceDirectory).on('unlinkDir', async (path) => {
-        console.log(`- Directory ${path} was removed...`);
+        // On File Added
+        .on('add', async (path) => {
+            const ext = extname(path);
+            console.log(`- File '${path}' was added`);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                await copyFile(path, destination).catch(console.error);
+            }
+        })
 
-        const destination = path.replace(inputSourceDirectory, outputDirectory);
-        await rmdir(destination);
-    });
+        // On File Removed
+        .on('unlink', async (path) => {
+            console.log(`- File '${path}' was removed`);
+            const ext = extname(path);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                if (existsSync(destination)) await rm(destination).catch(console.error);
+            }
+        })
 
-    watch(inputSourceDirectory).on('change', async (path) => {
-        console.log(`- Change detected in ${path}...`);
-        const ext = extname(path);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
-            const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await copy(path, destination, {
-                overwrite: true,
-                recursive: true,
-            });
-        }
-    });
+        // On Change
+        .on('change', async (path) => {
+            console.log(`- Change detected in '${path}'`);
+            const ext = extname(path);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                await copy(path, destination, {
+                    overwrite: true,
+                    recursive: true,
+                }).catch(console.error);
+            }
+        });
 }
 
 // Main Process
