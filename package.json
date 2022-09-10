@@ -19,12 +19,17 @@
     "productName": "My App",
     "files": [
       "app/**/*",
+      "icons/**/*",
       "node_modules/**/*",
       "package.json"
     ],
-    "mac": {},
-    "win": {},
-    "linux": {}
+    "mac": {
+    },
+    "win": {
+      "icon": "icons/win/icon.ico"
+    },
+    "linux": {
+    }
   },
   "author": "MathieuGermain",
   "license": "MIT",
