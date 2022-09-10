@@ -12,7 +12,7 @@
     "dev:test": "jest --watch",
     "dev:compile": "yarn run compile && ts-node app.compiler.ts --watch",
     "dev:start": "electron ./app/index.js",
-    "build": "yarn run compile && electron-builder build"
+    "build": "yarn run compile --compress && electron-builder build"
   },
   "build": {
     "appId": "com.electron.myapp",
@@ -53,8 +53,7 @@
   "bugs": {
     "url": "https://github.com/MathieuGermain/electron-typescript-template/issues"
   },
-  "dependencies": {
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/jest": "^29.0.0",
     "@types/node": "^18.7.16",
@@ -66,6 +65,7 @@
     "electron-builder": "^23.3.3",
     "eslint": "^8.23.0",
     "eslint-plugin-prettier": "^4.2.1",
+    "fs-extra": "^10.1.0",
     "jest": "^29.0.2",
     "prettier": "2.7.1",
     "sass": "^1.54.9",
