@@ -1,12 +1,11 @@
 {
-  "name": "typescript-template",
+  "name": "electron-typescript-template",
   "version": "1.0.0",
-  "description": "Strict TypeScript template using yarn / Github Actions / CommonJS / TypeScript / Jest / ESLint / Prettier",
+  "description": "Electron TypeScript template using yarn / CommonJS / TypeScript / Jest / ESLint / Prettier / Github Actions",
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
     "clean": "del-cli -f ./dist ./types",
-    "prepublish": "yarn build",
     "prebuild": "yarn clean && yarn run lint",
     "build": "yarn run tsc",
     "lint": "yarn run eslint --fix --ext .ts src tests --cache src tests --cache-location node_modules/.cache/",
@@ -19,6 +18,7 @@
   "license": "MIT",
   "keywords": [
     "yarn",
+    "Electron",
     "TypeScript",
     "Template",
     "CommonJS",
@@ -27,13 +27,13 @@
     "Prettier",
     "Github Actions"
   ],
-  "homepage": "https://github.com/MathieuGermain/typescript-template#readme",
+  "homepage": "https://github.com/MathieuGermain/electron-typescript-template#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MathieuGermain/typescript-template.git"
+    "url": "git+https://github.com/MathieuGermain/electron-typescript-template.git"
   },
   "bugs": {
-    "url": "https://github.com/MathieuGermain/typescript-template/issues"
+    "url": "https://github.com/MathieuGermain/electron-typescript-template/issues"
   },
   "dependencies": {},
   "devDependencies": {
