@@ -25,11 +25,19 @@
       "!**/*.ts",
       "!tsconfig.json"
     ],
-    "mac": {},
+    "mac": {
+      "category": "your.app.category.type"
+    },
     "win": {
+      "target": "nsis",
       "icon": "resources/win/icon.ico"
     },
+    "nsis": {
+      "oneClick": false
+    },
     "linux": {
+      "category": "your.app.category.type",
+      "target": "AppImage",
       "icon": "resources/linux/icon.png"
     }
   },
