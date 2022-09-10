@@ -99,22 +99,23 @@ export async function TranspileTypescript(watchChanges = false) {
 }
 
 // Execute each
-export async function ExecuteEach(exitOnError = true) {
+export async function ExecuteEach() {
     await Promise.all([
-        TranspileTypescript().catch((code) => {
-            if (exitOnError) process.exit(code);
+        TranspileTypescript().catch((error) => {
+            console.error(error);
+            throw error;
         }),
-
-        TranspileSASS().catch((error: Error) => {
-            console.error(error.message);
-            if (exitOnError) process.exit(1);
+        TranspileSASS().catch((error) => {
+            console.error(error);
+            throw error;
         }),
-
-        CopyAssets().catch((error: Error) => {
-            console.error(error.message);
-            if (exitOnError) process.exit(1);
+        CopyAssets().catch((error) => {
+            console.error(error);
+            throw error;
         }),
-    ]);
+    ]).catch((code) => {
+        process.exit(code > 0 ? code : 1);
+    });
 }
 
 // Start Watchers
