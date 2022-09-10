@@ -19,11 +19,9 @@ export async function getFilesInDirRecursive(dir: string, filelist: string[] = [
     const files = await readdir(dir);
     filelist = filelist || [];
     for (const file of files) {
-        if ((await stat(join(dir, file))).isDirectory()) {
+        if ((await stat(join(dir, file))).isDirectory())
             filelist = await getFilesInDirRecursive(join(dir, file), filelist);
-        } else {
-            filelist?.push(join(dir, file));
-        }
+        else filelist?.push(join(dir, file));
     }
     return filelist;
 }
@@ -84,14 +82,10 @@ export async function TranspileTypescript(watchChanges = false) {
             if (str.includes('error')) process.stdout.write(str + '\n');
         });
 
-        tsc.stderr.on('data', (data: Buffer) => {
-            console.error(data.toString());
-        });
+        tsc.stderr.on('data', (data: Buffer) => console.error(data.toString()));
 
         tsc.on('close', (code: number) => {
-            if (code != 0) {
-                return reject(code);
-            }
+            if (code != 0) return reject(code);
             console.log(`> Typescript transpiled in ${(Date.now() - time) / 1000}s!`);
             resolve();
         });
