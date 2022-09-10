@@ -1,0 +1,22 @@
+# Github
+.git/
+.github/
+
+# NPM
+node_modules/
+
+# Sources
+src/
+tests/
+
+# Files
+jest.config.ts
+tsconfig.json
+.eslintignore
+.eslintrc
+.prettierrc
+
+# Archives
+*.tgz
+*.zip
+*.rar
