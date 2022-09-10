@@ -4,57 +4,72 @@ import { watch } from 'chokidar';
 import { join, resolve, extname, dirname } from 'path';
 import { readdir, stat, writeFile } from 'fs/promises';
 import { copy, copyFile, existsSync, mkdir, rm } from 'fs-extra';
-import { compileAsync, OutputStyle } from 'sass';
+import { compileAsync } from 'sass';
 
-const isWatchEnabled = argv.includes('--watch');
-const isCompressed = argv.includes('--compress');
+const compileOptions = {
+    watch: argv.includes('-w') || argv.includes('--compress'),
+    compress: argv.includes('-c') || argv.includes('--compress'),
+};
+
+const TSExtentions = ['.ts', '.tsx', 'jsx'];
+const SASSExtentions = ['.scss', '.sass'];
 
 const outputDirectory = join(resolve(__dirname), 'app/');
 const inputSourceDirectory = join(resolve(__dirname), 'src/');
 const inputSassDirectory = join(resolve(__dirname), 'scss/');
-const outputStyle: OutputStyle = isCompressed ? 'compressed' : 'expanded';
 
-// Find all files in a directory and it's sub-directories
-export async function getFilesInDirRecursive(dir: string, filelist: string[] = []) {
-    const files = await readdir(dir);
-    filelist = filelist || [];
+/**
+ * Get all files recursively in a directory
+ * @param currentDirectory current directory to look into
+ * @param allFiles cumulated files from previous iteration
+ * @returns array of files found
+ */
+export async function getFilesInDirRecursive(currentDirectory: string, allFiles: string[] = []) {
+    const files = await readdir(currentDirectory);
+    allFiles = allFiles || [];
     for (const file of files) {
-        if ((await stat(join(dir, file))).isDirectory())
-            filelist = await getFilesInDirRecursive(join(dir, file), filelist);
-        else filelist?.push(join(dir, file));
+        if ((await stat(join(currentDirectory, file))).isDirectory())
+            allFiles = await getFilesInDirRecursive(join(currentDirectory, file), allFiles);
+        else allFiles?.push(join(currentDirectory, file));
     }
-    return filelist;
+    return allFiles;
 }
 
-// Copy Assets
+/**
+ * Copy all non TS and SCSS assets to the output directory
+ */
 export async function CopyAssets() {
     console.log('> Copying Assets...');
     const time = Date.now();
+
     const files = (await getFilesInDirRecursive(inputSourceDirectory)).filter(
-        (file: string) => ['.ts', '.scss', '.sass'].includes(extname(file)) === false,
+        (file: string) => TSExtentions.concat(SASSExtentions).includes(extname(file)) === false,
     );
     for (const file of files) {
         const destination = file.replace(inputSourceDirectory, outputDirectory);
         await copy(file, destination, { recursive: true });
     }
+
     console.log(`> Assets copied in ${(Date.now() - time) / 1000}s!`);
 }
 
-// Transpile SASS/SCSS
+/**
+ * Transpile all SCSS and SASS files whitin the scss directory into a single file inside the ouput directory
+ */
 export async function TranspileSASS() {
     console.log('> Transpiling SASS...');
     const time = Date.now();
     const css: string[] = [];
     const files = (await getFilesInDirRecursive(inputSassDirectory)).filter((file: string) =>
-        ['.scss', '.sass'].includes(extname(file)),
+        SASSExtentions.includes(extname(file)),
     );
     const loadPaths = files.map((file) => dirname(file));
     for (const file of files) {
         const result = await compileAsync(file, {
-            style: outputStyle,
+            style: compileOptions.compress ? 'compressed' : 'expanded',
             loadPaths,
         });
-        if (!isCompressed && result.css.length > 0) {
+        if (!compileOptions.compress && result.css.length > 0) {
             result.css = `/* File: ${file.replace(inputSassDirectory, '')} */\n${result.css}\n`;
         }
         css.push(result.css);
@@ -64,7 +79,10 @@ export async function TranspileSASS() {
     console.log(`> SASS transpiled in ${(Date.now() - time) / 1000}s!`);
 }
 
-// Transpile Typescript
+/**
+ * Transpile all typescript files from the source into the output directory
+ * @param watchChanges run the transpiler into watch mode
+ */
 export async function TranspileTypescript(watchChanges = false) {
     let time = Date.now();
     console.log('> Transpiling Typescript...');
@@ -86,7 +104,7 @@ export async function TranspileTypescript(watchChanges = false) {
             if (code != 0) return reject(code);
             console.log(`> Typescript transpiled in ${(Date.now() - time) / 1000}s!`);
 
-            if (isCompressed) {
+            if (compileOptions.compress) {
                 time = Date.now();
                 console.log('> Compressing Javascript...');
                 const jsFiles = await getFilesInDirRecursive(outputDirectory);
@@ -101,7 +119,11 @@ export async function TranspileTypescript(watchChanges = false) {
     });
 }
 
-// Compress Javascript file
+/**
+ * Compress and mangle a javascript file
+ * @param filePath the input file path
+ * @param outPath the output file path
+ */
 export async function CompressJavascriptFile(filePath: string, outPath: string) {
     return new Promise<void>((resolve, reject) => {
         const tsc = spawn('uglifyjs', [filePath, '--compress', '--mangle', '-o', outPath], {
@@ -121,7 +143,10 @@ export async function CompressJavascriptFile(filePath: string, outPath: string) 
     });
 }
 
-// Execute each
+/**
+ * Execute each process simultaneously.
+ * Print the errors but still throws.
+ */
 export async function ExecuteEach() {
     await Promise.all([
         TranspileTypescript().catch((error) => {
@@ -168,8 +193,8 @@ export function StartWatchers() {
         .on('add', async (path) => {
             const ext = extname(path);
             console.log(`- File '${path}' was added`);
-            if (['.ts'].includes(ext)) return;
-            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            if (TSExtentions.includes(ext)) return;
+            else if (SASSExtentions.includes(ext)) await TranspileSASS().catch(console.error);
             else {
                 const destination = path.replace(inputSourceDirectory, outputDirectory);
                 await copyFile(path, destination).catch(console.error);
@@ -180,8 +205,8 @@ export function StartWatchers() {
         .on('unlink', async (path) => {
             console.log(`- File '${path}' was removed`);
             const ext = extname(path);
-            if (['.ts'].includes(ext)) return;
-            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            if (TSExtentions.includes(ext)) return;
+            else if (SASSExtentions.includes(ext)) await TranspileSASS().catch(console.error);
             else {
                 const destination = path.replace(inputSourceDirectory, outputDirectory);
                 if (existsSync(destination)) await rm(destination).catch(console.error);
@@ -192,8 +217,8 @@ export function StartWatchers() {
         .on('change', async (path) => {
             console.log(`- Change detected in '${path}'`);
             const ext = extname(path);
-            if (['.ts'].includes(ext)) return;
-            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            if (TSExtentions.includes(ext)) return;
+            else if (SASSExtentions.includes(ext)) await TranspileSASS().catch(console.error);
             else {
                 const destination = path.replace(inputSourceDirectory, outputDirectory);
                 await copy(path, destination, {
@@ -206,6 +231,6 @@ export function StartWatchers() {
 
 // Main Process
 (async () => {
-    if (isWatchEnabled) StartWatchers();
+    if (compileOptions.watch) StartWatchers();
     else await ExecuteEach();
 })();
