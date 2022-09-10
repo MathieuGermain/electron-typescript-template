@@ -44,7 +44,7 @@ export async function CopyAssets() {
 export async function TranspileSASS() {
     console.log('> Transpiling SASS...');
     const time = Date.now();
-    const css: { file: string; css: string }[] = [];
+    const css: string[] = [];
     const files = (await getFilesInDirRecursive(inputSassDirectory)).filter((file: string) =>
         ['.scss', '.sass'].includes(extname(file)),
     );
@@ -54,21 +54,19 @@ export async function TranspileSASS() {
             style: outputStyle,
             loadPaths,
         });
-        css.push({ file: file.replace(inputSassDirectory, ''), css: result.css });
+        if (!isCompressed && result.css.length > 0) {
+            result.css = `/* File: ${file.replace(inputSassDirectory, '')} */\n${result.css}\n`;
+        }
+        css.push(result.css);
     }
     await mkdir(join(outputDirectory), { recursive: true });
-    await writeFile(
-        join(outputDirectory, 'styles.css'),
-        css
-            .map((entry) => (entry.css.length > 0 ? '/* File: ' + entry.file + ' */\n' + entry.css + '\n' : undefined))
-            .join(''),
-    );
+    await writeFile(join(outputDirectory, 'styles.css'), css.join(''));
     console.log(`> SASS transpiled in ${(Date.now() - time) / 1000}s!`);
 }
 
 // Transpile Typescript
 export async function TranspileTypescript(watchChanges = false) {
-    const time = Date.now();
+    let time = Date.now();
     console.log('> Transpiling Typescript...');
 
     return new Promise<void>((resolve, reject) => {
@@ -84,9 +82,40 @@ export async function TranspileTypescript(watchChanges = false) {
 
         tsc.stderr.on('data', (data: Buffer) => console.error(data.toString()));
 
-        tsc.on('close', (code: number) => {
+        tsc.on('close', async (code: number) => {
             if (code != 0) return reject(code);
             console.log(`> Typescript transpiled in ${(Date.now() - time) / 1000}s!`);
+
+            if (isCompressed) {
+                time = Date.now();
+                console.log('> Compressing Javascript...');
+                const jsFiles = await getFilesInDirRecursive(outputDirectory);
+                for (const jsFile of jsFiles) {
+                    if (extname(jsFile) == '.js') await CompressJavascriptFile(jsFile, jsFile);
+                }
+                console.log(`> Javascript compressed in ${(Date.now() - time) / 1000}s!`);
+            }
+
+            resolve();
+        });
+    });
+}
+
+// Compress Javascript file
+export async function CompressJavascriptFile(filePath: string, outPath: string) {
+    return new Promise<void>((resolve, reject) => {
+        const tsc = spawn('uglifyjs', [filePath, '--compress', '--mangle', '-o', outPath], {
+            shell: true,
+        });
+
+        tsc.stdout.on('data', (data: Buffer) => {
+            console.log(data.toString());
+        });
+
+        tsc.stderr.on('data', (data: Buffer) => console.error(data.toString()));
+
+        tsc.on('close', (code: number) => {
+            if (code != 0) return reject(code);
             resolve();
         });
     });
