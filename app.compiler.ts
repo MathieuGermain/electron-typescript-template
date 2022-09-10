@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { watch } from 'chokidar';
 import { join, resolve, extname, dirname } from 'path';
 import { readdir, stat, writeFile } from 'fs/promises';
-import { copy, copyFile, mkdir, rmdir, unlink } from 'fs-extra';
+import { copy, copyFile, existsSync, mkdir, rm } from 'fs-extra';
 import { compileAsync, OutputStyle } from 'sass';
 
 const isWatchEnabled = argv.includes('--watch');
@@ -122,69 +122,63 @@ export async function ExecuteEach() {
 export function StartWatchers() {
     console.log('App Compiler is watching...');
 
-    watch(inputSourceDirectory).on('add', async (path) => {
-        const ext = extname(path);
+    TranspileTypescript(true);
 
-        console.log(`- File ${path} was added...`);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
+    watch([inputSourceDirectory, inputSassDirectory], {
+        ignoreInitial: true,
+    })
+        // On Dir Added
+        .on('addDir', async (path) => {
+            console.log(`- Directory '${path}' was added`);
             const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await copyFile(path, destination);
-        }
-    });
+            await mkdir(destination, { recursive: true }).catch(console.error);
+        })
 
-    watch(inputSourceDirectory).on('addDir', async (path) => {
-        console.log(`- Directory ${path} was added...`);
-
-        const destination = path.replace(inputSourceDirectory, outputDirectory);
-        await mkdir(destination, { recursive: true });
-    });
-
-    watch(inputSourceDirectory).on('unlink', async (path) => {
-        console.log(`- File ${path} was removed...`);
-
-        const ext = extname(path);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
+        // On Dir Removed
+        .on('unlinkDir', async (path) => {
+            console.log(`- Directory '${path}' was removed`);
             const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await unlink(destination);
-        }
-    });
+            if (existsSync(destination)) await rm(destination, { recursive: true }).catch(console.error);
+        })
 
-    watch(inputSourceDirectory).on('unlinkDir', async (path) => {
-        console.log(`- Directory ${path} was removed...`);
+        // On File Added
+        .on('add', async (path) => {
+            const ext = extname(path);
+            console.log(`- File '${path}' was added`);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                await copyFile(path, destination).catch(console.error);
+            }
+        })
 
-        const destination = path.replace(inputSourceDirectory, outputDirectory);
-        await rmdir(destination);
-    });
+        // On File Removed
+        .on('unlink', async (path) => {
+            console.log(`- File '${path}' was removed`);
+            const ext = extname(path);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                if (existsSync(destination)) await rm(destination).catch(console.error);
+            }
+        })
 
-    watch(inputSourceDirectory).on('change', async (path) => {
-        console.log(`- Change detected in ${path}...`);
-        const ext = extname(path);
-
-        // TS file changed
-        if (['.ts'].includes(ext)) await TranspileTypescript().catch(console.error);
-        // SASS file changed
-        else if (['.sass', '.scss'].includes(extname(path))) await TranspileSASS().catch(console.error);
-        // Any other file
-        else {
-            const destination = path.replace(inputSourceDirectory, outputDirectory);
-            await copy(path, destination, {
-                overwrite: true,
-                recursive: true,
-            });
-        }
-    });
+        // On Change
+        .on('change', async (path) => {
+            console.log(`- Change detected in '${path}'`);
+            const ext = extname(path);
+            if (['.ts'].includes(ext)) return;
+            else if (['.sass', '.scss'].includes(ext)) await TranspileSASS().catch(console.error);
+            else {
+                const destination = path.replace(inputSourceDirectory, outputDirectory);
+                await copy(path, destination, {
+                    overwrite: true,
+                    recursive: true,
+                }).catch(console.error);
+            }
+        });
 }
 
 // Main Process
