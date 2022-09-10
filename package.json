@@ -18,10 +18,12 @@
     "appId": "com.electron.myapp",
     "productName": "My App",
     "files": [
-      "app/**/*",
-      "resources/**/*",
-      "node_modules/**/*",
-      "package.json"
+      "!src",
+      "!scss",
+      "!tests",
+      "!.*",
+      "!**/*.ts",
+      "!tsconfig.json"
     ],
     "mac": {},
     "win": {
