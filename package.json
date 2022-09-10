@@ -19,16 +19,16 @@
     "productName": "My App",
     "files": [
       "app/**/*",
-      "icons/**/*",
+      "resources/**/*",
       "node_modules/**/*",
       "package.json"
     ],
-    "mac": {
-    },
+    "mac": {},
     "win": {
-      "icon": "icons/win/icon.ico"
+      "icon": "resources/win/icon.ico"
     },
     "linux": {
+      "icon": "resources/linux/icon.png"
     }
   },
   "author": "MathieuGermain",
