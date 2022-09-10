@@ -50,13 +50,13 @@ export async function TranspileSASS() {
     const files = (await getFilesInDirRecursive(inputSassDirectory)).filter((file: string) =>
         ['.scss', '.sass'].includes(extname(file)),
     );
-    const paths = files.map((file) => dirname(file));
+    const loadPaths = files.map((file) => dirname(file));
     for (const file of files) {
         const result = await compileAsync(file, {
             style: outputStyle,
-            loadPaths: paths,
+            loadPaths,
         });
-        css.push({ file: file.replace(inputSourceDirectory, ''), css: result.css });
+        css.push({ file: file.replace(inputSassDirectory, ''), css: result.css });
     }
     await mkdir(join(outputDirectory), { recursive: true });
     await writeFile(
