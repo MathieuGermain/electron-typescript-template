@@ -30,6 +30,8 @@ export async function getFilesInDirRecursive(dir: string, filelist: string[] = [
 
 // Copy Assets
 export async function CopyAssets() {
+    console.log('> Copying Assets...');
+    const time = Date.now();
     const files = (await getFilesInDirRecursive(inputSourceDirectory)).filter(
         (file: string) => ['.ts', '.scss', '.sass'].includes(extname(file)) === false,
     );
@@ -37,12 +39,13 @@ export async function CopyAssets() {
         const destination = file.replace(inputSourceDirectory, outputDirectory);
         await copy(file, destination, { recursive: true });
     }
+    console.log(`> Assets copied in ${(Date.now() - time) / 1000}s!`);
 }
 
 // Transpile SASS/SCSS
 export async function TranspileSASS() {
-    const time = Date.now();
     console.log('> Transpiling SASS...');
+    const time = Date.now();
     const css: { file: string; css: string }[] = [];
     const files = (await getFilesInDirRecursive(inputSassDirectory)).filter((file: string) =>
         ['.scss', '.sass'].includes(extname(file)),
